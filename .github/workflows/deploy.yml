@@ -39,14 +39,16 @@ jobs:
           mkdir -p deploy/frontend
           mkdir -p deploy/backend
           
-          # Copy frontend production build
+          # Copy frontend production build and modules
           cp -r frontend/dist/. deploy/frontend/
+          cp -r frontend/node_modules deploy/frontend/
           
-          # Copy backend compiled files, package files, and prisma schema
+          # Copy backend compiled files, package files, prisma schema, and modules
           cp -r backend/dist/. deploy/backend/
           cp backend/package.json deploy/backend/
           cp backend/package-lock.json deploy/backend/
           cp -r backend/prisma deploy/backend/
+          cp -r backend/node_modules deploy/backend/
           
           # Create app.js entry point for cPanel Passenger
           echo "require('./backend/index.js');" > deploy/app.js
@@ -54,6 +56,9 @@ jobs:
           # Create tmp folder and restart.txt for cPanel
           mkdir -p deploy/tmp
           touch deploy/tmp/restart.txt
+          
+          # Create a single ZIP file for the entire deployment to handle node_modules efficiently
+          cd deploy && zip -r ../deploy.zip . && cd ..
 
       - name: Deploy to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -61,6 +66,9 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./deploy/
+          local-dir: ./
           server-dir: ${{ secrets.FTP_SERVER_DIR }}/
           dangerous-clean-slate: false
+          exclude: |
+            **
+            !deploy.zip
