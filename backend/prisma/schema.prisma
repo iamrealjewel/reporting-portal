@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  roles       Role[]   @relation("RolePermissions")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Role {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  permissions Permission[] @relation("RolePermissions")
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Stock {
+  id             Int       @id @default(autoincrement())
+  division       String?
+  siteName       String?
+  distCode       String?
+  source         String?
+  partyName      String?
+  group          String?
+  category       String?
+  brand          String?
+  productCode    String    // Product SKU
+  productName    String
+  batchName      String?
+  qty            Int
+  retailerPrice  Float?
+  dealerPrice    Float?
+  ltrKg          Float?
+  retailerAmount Float?
+  dealerAmount   Float?
+  stockDate      DateTime  @default(now())
+  importDate     DateTime  @default(now())
+  importedBy     Int
+  hash           String    @unique // To prevent duplicate imports
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([brand])
+  @@index([division])
+  @@index([category])
+  @@index([group])
+  @@index([siteName])
+  @@index([source])
+  @@index([partyName])
+  @@index([productName])
+}
+
+model Sales {
+  id             Int       @id @default(autoincrement())
+  date           DateTime
+  division       String?
+  depot          String?
+  seller         String?
+  dbCode         String?
+  dbName         String?
+  prodLine       String?
+  category       String?
+  brand          String?
+  productCode    String    // Product SKU
+  productName    String
+  empId          String?
+  employeeName   String?
+  qtyPc          Int
+  qtyLtrKg       Float?
+  dpValue        Float?
+  tpValue        Float?
+  importDate     DateTime  @default(now())
+  importedBy     Int
+  hash           String    @unique // To prevent duplicate imports
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([brand])
+  @@index([division])
+  @@index([category])
+  @@index([depot])
+  @@index([prodLine])
+  @@index([productName])
+  @@index([seller])
+  @@index([employeeName])
+  @@index([dbName])
+}
+
+model ImportJob {
+  id           String   @id @default(uuid())
+  type         String   // "STOCK" or "SALES"
+  status       String   // "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+  progress     Int      @default(0)
+  totalRecords Int      @default(0)
+  processed    Int      @default(0)
+  duplicates   Int      @default(0)
+  errors       Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
