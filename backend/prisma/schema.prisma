@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -11,19 +12,19 @@ model Permission {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String?
-  roles       Role[]   @relation("RolePermissions")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  roles       Role[]   @relation("RolePermissions")
 }
 
 model Role {
   id          Int          @id @default(autoincrement())
   name        String       @unique
   description String?
-  permissions Permission[] @relation("RolePermissions")
-  users       User[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  users       User[]
+  permissions Permission[] @relation("RolePermissions")
 }
 
 model User {
@@ -32,13 +33,15 @@ model User {
   email     String   @unique
   password  String
   roleId    Int
-  role      Role     @relation(fields: [roleId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  @@index([roleId], map: "User_roleId_fkey")
 }
 
 model Stock {
-  id             Int       @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   division       String?
   siteName       String?
   distCode       String?
@@ -47,7 +50,7 @@ model Stock {
   group          String?
   category       String?
   brand          String?
-  productCode    String    // Product SKU
+  productCode    String
   productName    String
   batchName      String?
   qty            Int
@@ -56,12 +59,12 @@ model Stock {
   ltrKg          Float?
   retailerAmount Float?
   dealerAmount   Float?
-  stockDate      DateTime  @default(now())
-  importDate     DateTime  @default(now())
+  stockDate      DateTime @default(now())
+  importDate     DateTime @default(now())
   importedBy     Int
-  hash           String    @unique // To prevent duplicate imports
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  hash           String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([brand])
   @@index([division])
@@ -74,29 +77,29 @@ model Stock {
 }
 
 model Sales {
-  id             Int       @id @default(autoincrement())
-  date           DateTime
-  division       String?
-  depot          String?
-  seller         String?
-  dbCode         String?
-  dbName         String?
-  prodLine       String?
-  category       String?
-  brand          String?
-  productCode    String    // Product SKU
-  productName    String
-  empId          String?
-  employeeName   String?
-  qtyPc          Int
-  qtyLtrKg       Float?
-  dpValue        Float?
-  tpValue        Float?
-  importDate     DateTime  @default(now())
-  importedBy     Int
-  hash           String    @unique // To prevent duplicate imports
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id           Int      @id @default(autoincrement())
+  date         DateTime
+  division     String?
+  depot        String?
+  seller       String?
+  dbCode       String?
+  dbName       String?
+  prodLine     String?
+  category     String?
+  brand        String?
+  productCode  String
+  productName  String
+  empId        String?
+  employeeName String?
+  qtyPc        Int
+  qtyLtrKg     Float?
+  dpValue      Float?
+  tpValue      Float?
+  importDate   DateTime @default(now())
+  importedBy   Int
+  hash         String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([brand])
   @@index([division])
@@ -111,8 +114,8 @@ model Sales {
 
 model ImportJob {
   id           String   @id @default(uuid())
-  type         String   // "STOCK" or "SALES"
-  status       String   // "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+  type         String
+  status       String
   progress     Int      @default(0)
   totalRecords Int      @default(0)
   processed    Int      @default(0)
