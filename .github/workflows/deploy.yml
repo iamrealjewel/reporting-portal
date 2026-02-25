@@ -47,6 +47,13 @@ jobs:
           cp backend/package.json deploy/backend/
           cp backend/package-lock.json deploy/backend/
           cp -r backend/prisma deploy/backend/
+          
+          # Create app.js entry point for cPanel Passenger
+          echo "require('./backend/index.js');" > deploy/app.js
+          
+          # Create tmp folder and restart.txt for cPanel
+          mkdir -p deploy/tmp
+          touch deploy/tmp/restart.txt
 
       - name: Deploy to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
