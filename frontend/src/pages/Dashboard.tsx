@@ -10,17 +10,11 @@ import {
     ResponsiveContainer,
     AreaChart,
     Area,
-    PieChart,
-    Pie,
-    Cell,
 } from "recharts";
 import {
-    TrendingUp,
-    TrendingDown,
     DollarSign,
     Package,
     ShoppingCart,
-    Layers,
     ChevronRight,
     RefreshCcw,
 } from "lucide-react";
@@ -31,6 +25,16 @@ import { toast } from "sonner";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
+function formatCompactNumber(number: number) {
+    if (number >= 1000000) {
+        return (number / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (number >= 1000) {
+        return (number / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return number.toString();
+}
+
 export default function Dashboard() {
     const [kpis, setKpis] = useState<any>(null);
     const [trends, setTrends] = useState<any[]>([]);
@@ -38,15 +42,59 @@ export default function Dashboard() {
     const [stockByCat, setStockByCat] = useState<any[]>([]);
     const [dimension, setDimension] = useState("brand");
     const [loading, setLoading] = useState(true);
+    const [timeTab, setTimeTab] = useState("mtd");
+    const [startDate, setStartDate] = useState(() => {
+        const today = new Date();
+        today.setDate(1);
+        return today.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [stackedDivisionData, setStackedDivisionData] = useState<any[]>([]);
+
+    const handleTabClick = (tab: string) => {
+        setTimeTab(tab);
+        const today = new Date();
+        const end = today.toISOString().split('T')[0];
+
+        const start = new Date(today);
+        start.setHours(0, 0, 0, 0);
+
+        if (tab === 'today') {
+            setStartDate(start.toISOString().split('T')[0]);
+            setEndDate(end);
+        } else if (tab === 'wtd') {
+            const day = start.getDay();
+            const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+            start.setDate(diff);
+            setStartDate(start.toISOString().split('T')[0]);
+            setEndDate(end);
+        } else if (tab === 'mtd') {
+            start.setDate(1);
+            setStartDate(start.toISOString().split('T')[0]);
+            setEndDate(end);
+        } else if (tab === 'ytd') {
+            start.setMonth(0, 1);
+            setStartDate(start.toISOString().split('T')[0]);
+            setEndDate(end);
+        } else if (tab === 'all') {
+            setStartDate('');
+            setEndDate('');
+        }
+    };
 
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const [kpiRes, trendRes, summaryRes, stockRes] = await Promise.all([
-                api.get("/analytics/dashboard-kpis"),
-                api.get("/analytics/sales-trends"),
-                api.get(`/analytics/sales-summary?dimension=${dimension}`),
-                api.get("/analytics/stock-summary?dimension=category"),
+            const dateParams = startDate && endDate ? `startDate=${startDate}&endDate=${endDate}` : '';
+            const qPrefix = dateParams ? `?${dateParams}` : '';
+            const qAnd = dateParams ? `&${dateParams}` : '';
+
+            const [kpiRes, trendRes, summaryRes, stockRes, stackedDivRes] = await Promise.all([
+                api.get(`/analytics/dashboard-kpis${qPrefix}`),
+                api.get(`/analytics/sales-trends${qPrefix}`),
+                api.get(`/analytics/sales-summary?dimension=${dimension}${qAnd}`),
+                api.get(`/analytics/stock-summary?dimension=division,category${qAnd}`),
+                api.get(`/analytics/sales-summary?dimension=division,prodLine${qAnd}`)
             ]);
 
             setKpis(kpiRes.data);
@@ -54,8 +102,48 @@ export default function Dashboard() {
                 ...t,
                 day: t.day ? new Date(t.day).toLocaleDateString() : 'N/A'
             })));
-            setSummaryData(summaryRes.data || []);
-            setStockByCat(stockRes.data || []);
+
+            setSummaryData((summaryRes.data || []).map((item: any) => {
+                const dims = dimension.split(',');
+                const label = dims.map(d => item[d] || 'N/A').join(' \u2192 ');
+                return { ...item, chartLabel: label };
+            }));
+
+            // Pivot stock data for Stacked Bar (grouped by division, stacked by category)
+            const stockMap = new Map<string, any>();
+            (stockRes.data || []).forEach((item: any) => {
+                const div = item.division || 'Unknown';
+                const cat = item.category || 'Unknown';
+                const val = Number(item._sum?.dealerAmount || 0);
+
+                if (!stockMap.has(div)) {
+                    stockMap.set(div, { division: div, total: 0 });
+                }
+                const divObj = stockMap.get(div);
+                divObj[cat] = (divObj[cat] || 0) + val;
+                divObj.total += val;
+            });
+
+            const finalStock = Array.from(stockMap.values()).sort((a, b) => b.total - a.total);
+            setStockByCat(finalStock);
+
+            // Pivot explicit Sales Division map for Stacked Bar (grouped by division, stacked by prodLine)
+            const divMap = new Map<string, any>();
+            (stackedDivRes.data || []).forEach((item: any) => {
+                const div = item.division || 'Unknown';
+                const line = item.prodLine || 'Unknown';
+                const val = Number(item._sum?.dpValue || 0);
+
+                if (!divMap.has(div)) {
+                    divMap.set(div, { division: div, total: 0 });
+                }
+                const divObj = divMap.get(div);
+                divObj[line] = (divObj[line] || 0) + val;
+                divObj.total += val;
+            });
+            const finalDivMap = Array.from(divMap.values()).sort((a, b) => b.total - a.total);
+            setStackedDivisionData(finalDivMap);
+
         } catch (error) {
             toast.error("Failed to load dashboard data");
         } finally {
@@ -66,7 +154,7 @@ export default function Dashboard() {
     useEffect(() => {
         document.title = "Executive Dashboard | DMS Portal";
         fetchDashboardData();
-    }, [dimension]);
+    }, [dimension, startDate, endDate]);
 
     if (!kpis && loading) {
         return (
@@ -78,52 +166,92 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6 pb-10">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Executive Dashboard</h1>
                     <p className="text-slate-500 text-sm mt-1 italic">Real-time performance metrics and distribution analytics.</p>
                 </div>
-                <div className="flex gap-3">
-                    <Button variant="outline" onClick={fetchDashboardData} className="h-10 rounded-xl border-slate-200">
+
+                <div className="flex flex-col xl:flex-row items-center justify-center gap-3 w-full xl:col-span-1 border border-slate-200/60 p-1.5 rounded-2xl bg-white shadow-sm mt-4 xl:mt-0 xl:flex-1 max-w-4xl mx-auto">
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-full xl:w-auto overflow-x-auto">
+                        {['today', 'wtd', 'mtd', 'ytd', 'all'].map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => handleTabClick(tab)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap flex-1 xl:flex-none ${timeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 px-2 py-1 w-full xl:w-auto justify-center">
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => { setStartDate(e.target.value); setTimeTab('custom'); }}
+                            className="h-8 w-32 text-xs font-bold border rounded-lg bg-slate-50 border-slate-200 px-2 text-slate-600 cursor:pointer focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                        <span className="text-slate-300 font-bold px-1 flex-shrink-0">to</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => { setEndDate(e.target.value); setTimeTab('custom'); }}
+                            className="h-8 w-32 text-xs font-bold border rounded-lg bg-slate-50 border-slate-200 px-2 text-slate-600 cursor:pointer focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-end mt-4 xl:mt-0">
+                    <Button variant="outline" onClick={fetchDashboardData} className="h-11 rounded-xl border-slate-200 shrink-0 shadow-sm ml-auto">
                         <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh Data
+                        Refresh
                     </Button>
                 </div>
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <KPICard
                     title="Total Sales Value"
-                    value={`৳${(kpis?.totalSalesAmount || 0).toLocaleString()}`}
-                    subValue="+12.5% from last month"
+                    value={`৳${formatCompactNumber(kpis?.sales?.totalAmount || 0)}`}
+                    subValue="Target: ৳20M"
                     icon={<DollarSign className="h-6 w-6 text-emerald-600" />}
                     gradient="from-emerald-500/10 to-teal-500/10"
                     border="border-emerald-100"
+                    breakdown={kpis?.sales?.breakdown?.map((b: any) => ({
+                        label: b.prodLine,
+                        value: `৳${formatCompactNumber(b.amount || 0)}`,
+                        percentage: kpis?.sales?.totalAmount ? ((b.amount || 0) / kpis.sales.totalAmount) * 100 : 0
+                    }))}
                 />
+
                 <KPICard
-                    title="Stock Inventory Value"
-                    value={`৳${(kpis?.totalStockValue || 0).toLocaleString()}`}
-                    subValue="Current valuation"
-                    icon={<Package className="h-6 w-6 text-blue-600" />}
-                    gradient="from-blue-500/10 to-indigo-500/10"
-                    border="border-blue-100"
-                />
-                <KPICard
-                    title="Sales Volume (Qty)"
-                    value={(kpis?.totalSalesQty || 0).toLocaleString()}
-                    subValue="Pieces sold"
+                    title="Sales Volume"
+                    value={formatCompactNumber(kpis?.sales?.totalVolume || 0)}
+                    subValue="Target: 50,000"
                     icon={<ShoppingCart className="h-6 w-6 text-amber-600" />}
                     gradient="from-amber-500/10 to-orange-500/10"
                     border="border-amber-100"
+                    breakdown={kpis?.sales?.breakdown?.map((b: any) => ({
+                        label: b.prodLine,
+                        value: `${formatCompactNumber(b.volume || 0)}`,
+                        percentage: kpis?.sales?.totalVolume ? ((b.volume || 0) / kpis.sales.totalVolume) * 100 : 0
+                    }))}
                 />
+
                 <KPICard
-                    title="Total Transactions"
-                    value={(kpis?.totalSalesTransactions || 0).toLocaleString()}
-                    subValue="Invoices processed"
-                    icon={<Layers className="h-6 w-6 text-purple-600" />}
-                    gradient="from-purple-500/10 to-fuchsia-500/10"
-                    border="border-purple-100"
+                    title="Stock Inventory Value"
+                    value={`৳${formatCompactNumber(kpis?.stock?.totalValue || 0)}`}
+                    subValue={`Total volume: ${formatCompactNumber(kpis?.stock?.totalVolume || 0)}`}
+                    icon={<Package className="h-6 w-6 text-blue-600" />}
+                    gradient="from-blue-500/10 to-indigo-500/10"
+                    border="border-blue-100"
+                    breakdown={kpis?.stock?.breakdown?.map((b: any) => ({
+                        label: b.category,
+                        value: `৳${formatCompactNumber(b.value || 0)}`,
+                        percentage: kpis?.stock?.totalValue ? ((b.value || 0) / kpis.stock.totalValue) * 100 : 0
+                    }))}
                 />
             </div>
 
@@ -136,18 +264,20 @@ export default function Dashboard() {
                                 <CardTitle className="text-lg font-bold text-slate-900">Revenue Performance Trend</CardTitle>
                                 <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Daily Sales Amount (TK)</p>
                             </div>
-                            <TrendingUp className="h-5 w-5 text-emerald-500" />
                         </div>
                     </CardHeader>
                     <CardContent className="p-6">
-                        <div className="h-[300px] w-full">
+                        <div className="h-[350px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trends}>
+                                <AreaChart data={trends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                     <defs>
-                                        <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                        </linearGradient>
+                                        {Array.from(new Set(trends.flatMap(t => Object.keys(t).filter(k => k !== 'day' && k !== 'total'))))
+                                            .map((key, idx) => (
+                                                <linearGradient key={`grad-${key}`} id={`color-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor={COLORS[idx % COLORS.length]} stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor={COLORS[idx % COLORS.length]} stopOpacity={0} />
+                                                </linearGradient>
+                                            ))}
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis
@@ -156,7 +286,7 @@ export default function Dashboard() {
                                         fontSize={10}
                                         tickLine={false}
                                         axisLine={false}
-                                        tickFormatter={(val) => val.split('/')[0] + '/' + val.split('/')[1]}
+                                        tickFormatter={(val) => val.split('-')[1] + '/' + val.split('-')[2]}
                                     />
                                     <YAxis
                                         stroke="#94a3b8"
@@ -168,7 +298,21 @@ export default function Dashboard() {
                                     <Tooltip
                                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                     />
-                                    <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorAmt)" />
+
+                                    {Array.from(new Set(trends.flatMap(t => Object.keys(t).filter(k => k !== 'day' && k !== 'total'))))
+                                        .map((key, idx) => (
+                                            <Area
+                                                key={key}
+                                                type="monotone"
+                                                dataKey={key}
+                                                name={key}
+                                                stackId="1"
+                                                stroke={COLORS[idx % COLORS.length]}
+                                                strokeWidth={2}
+                                                fillOpacity={1}
+                                                fill={`url(#color-${key})`}
+                                            />
+                                        ))}
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -182,37 +326,39 @@ export default function Dashboard() {
                         <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Distribution by Category</p>
                     </CardHeader>
                     <CardContent className="p-6">
-                        <div className="h-[300px] w-full">
+                        <div className="h-[350px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={stockByCat.slice(0, 6)}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="_sum.dealerAmount"
-                                        nameKey="category"
-                                    >
-                                        {stockByCat.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <BarChart data={stockByCat} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis
+                                        dataKey="division"
+                                        stroke="#94a3b8"
+                                        fontSize={9}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        interval={0}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                    />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `৳${(val / 1000000).toFixed(1)}M`} />
+                                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+
+                                    {Array.from(new Set(stockByCat.flatMap(s => Object.keys(s).filter(k => k !== 'division' && k !== 'total'))))
+                                        .map((cat, idx) => (
+                                            <Bar
+                                                key={cat}
+                                                dataKey={cat}
+                                                stackId="a"
+                                                fill={COLORS[idx % COLORS.length]}
+                                                radius={
+                                                    // Only round the top if we wanted to, but stacked bars act weird with radiuses sometimes. Leaving flat.
+                                                    [0, 0, 0, 0]
+                                                }
+                                            />
                                         ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
+                                </BarChart>
                             </ResponsiveContainer>
-                        </div>
-                        <div className="mt-4 space-y-2">
-                            {stockByCat.slice(0, 4).map((item, index) => (
-                                <div key={index} className="flex justify-between items-center text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                                        <span className="font-bold text-slate-600 truncate max-w-[120px]">{item.category}</span>
-                                    </div>
-                                    <span className="font-mono font-bold text-slate-900">৳{(item._sum?.dealerAmount / 1000000).toFixed(1)}M</span>
-                                </div>
-                            ))}
                         </div>
                     </CardContent>
                 </Card>
@@ -220,34 +366,89 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Sales by Dimension */}
-                <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden">
+                <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden lg:col-span-full">
                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-lg font-bold text-slate-900">Revenue Contribution</CardTitle>
                             <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Grouped by active selection</p>
                         </div>
                         <Select value={dimension} onValueChange={setDimension}>
-                            <SelectTrigger className="w-[140px] h-9 rounded-lg border-slate-200 bg-white">
+                            <SelectTrigger className="w-[180px] h-9 rounded-lg border-slate-200 bg-white">
                                 <SelectValue placeholder="Dimension" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="brand">Brand</SelectItem>
                                 <SelectItem value="division">Division</SelectItem>
+                                <SelectItem value="brand">Brand</SelectItem>
                                 <SelectItem value="category">Category</SelectItem>
-                                <SelectItem value="depot">Depot</SelectItem>
                                 <SelectItem value="prodLine">Product Line</SelectItem>
+                                <SelectItem value="division,brand">Division & Brand</SelectItem>
+                                <SelectItem value="division,prodLine">Division & Prod Line</SelectItem>
+                                <SelectItem value="brand,division">Brand & Division</SelectItem>
                             </SelectContent>
                         </Select>
                     </CardHeader>
                     <CardContent className="p-6">
-                        <div className="h-[300px] w-full">
+                        <div className="h-[350px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={summaryData.slice(0, 10)}>
+                                <BarChart data={summaryData.slice(0, 15)} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey={dimension} stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} interval={0} />
+                                    <XAxis
+                                        dataKey="chartLabel"
+                                        stroke="#94a3b8"
+                                        fontSize={9}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        interval={0}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                    />
                                     <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `৳${(val / 1000).toFixed(0)}k`} />
-                                    <Tooltip />
-                                    <Bar dataKey="_sum.dpValue" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={30} />
+                                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                    <Bar dataKey="_sum.dpValue" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Sales by Division Stacked */}
+                <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden lg:col-span-full">
+                    <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg font-bold text-slate-900">Revenue by Division</CardTitle>
+                            <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Stacked by Product Line</p>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                        <div className="h-[350px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stackedDivisionData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis
+                                        dataKey="division"
+                                        stroke="#94a3b8"
+                                        fontSize={9}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        interval={0}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={60}
+                                    />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `৳${(val / 1000000).toFixed(1)}M`} />
+                                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+
+                                    {Array.from(new Set(stackedDivisionData.flatMap(s => Object.keys(s).filter(k => k !== 'division' && k !== 'total'))))
+                                        .map((line, idx) => (
+                                            <Bar
+                                                key={line}
+                                                dataKey={line}
+                                                stackId="b"
+                                                fill={COLORS[idx % COLORS.length]}
+                                                radius={[0, 0, 0, 0]}
+                                            />
+                                        ))}
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -255,7 +456,7 @@ export default function Dashboard() {
                 </Card>
 
                 {/* Top Products Table */}
-                <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden">
+                <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden lg:col-span-full">
                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6 flex flex-row items-center justify-between">
                         <CardTitle className="text-lg font-bold text-slate-900">Top Revenue Generators</CardTitle>
                         <ChevronRight className="h-5 w-5 text-slate-300" />
@@ -291,24 +492,62 @@ export default function Dashboard() {
     );
 }
 
-function KPICard({ title, value, subValue, icon, gradient, border }: any) {
+function KPICard({ title, value, subValue, icon, gradient, border, breakdown }: any) {
     return (
         <Card className={`rounded-2xl border ${border} shadow-sm overflow-hidden relative group transition-all hover:shadow-md hover:-translate-y-1`}>
-            <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} rounded-bl-[100px] -mr-6 -mt-6 opacity-60`}></div>
+            <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} rounded-bl-[100px] -mr-6 -mt-6 opacity-60 pointer-events-none`}></div>
             <CardContent className="p-6 relative">
                 <div className="flex items-start justify-between">
                     <div className="space-y-1">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
                         <h3 className="text-2xl font-black text-slate-900 tracking-tight">{value}</h3>
                         <div className="flex items-center gap-1 pt-1">
-                            {subValue.includes('+') ? <TrendingUp className="h-3 w-3 text-emerald-500" /> : <TrendingDown className="h-3 w-3 text-slate-300" />}
                             <span className="text-[10px] font-bold text-slate-400 italic">{subValue}</span>
                         </div>
                     </div>
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                    <div className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
                         {icon}
                     </div>
                 </div>
+
+                {breakdown && breakdown.length > 0 && (
+                    <div className="mt-5 border-t border-slate-100/80 pt-4">
+                        <div className="flex flex-row items-center justify-between gap-1 w-full">
+                            {breakdown.slice(0, 4).map((item: any, idx: number) => {
+                                const radius = 22;
+                                const circumference = 2 * Math.PI * radius;
+                                const strokeDashoffset = circumference - ((item.percentage || 0) / 100) * circumference;
+
+                                return (
+                                    <div key={idx} className="flex flex-col items-center justify-center space-y-2 flex-1 min-w-0">
+                                        <div className="relative w-14 h-14 flex items-center justify-center">
+                                            <svg className="transform -rotate-90 w-14 h-14" viewBox="0 0 52 52">
+                                                <circle cx="26" cy="26" r={radius} stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
+                                                <circle
+                                                    cx="26" cy="26"
+                                                    r={radius}
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                    fill="transparent"
+                                                    strokeDasharray={circumference}
+                                                    strokeDashoffset={strokeDashoffset}
+                                                    className="text-blue-500 transition-all duration-1000 ease-in-out"
+                                                    strokeLinecap="round"
+                                                />
+                                            </svg>
+                                            <div className="absolute flex flex-col items-center justify-center w-full h-full text-center p-0.5">
+                                                <span className="text-[9px] font-black text-slate-800 leading-tight tracking-tighter w-full overflow-hidden text-ellipsis" title={item.value}>{item.value}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-center leading-tight max-w-full">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center truncate w-full" title={item.label}>{item.label}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

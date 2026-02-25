@@ -390,126 +390,124 @@ export default function SalesSummaries() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                {isSidebarOpen && (
-                    <div className="lg:col-span-1 space-y-4 animate-in slide-in-from-left duration-300 fade-in fade-out">
-                        {/* Favorites Matrix */}
-                        <Card className="rounded-2xl border-slate-200 border shadow-sm">
-                            <CardHeader
-                                className="bg-emerald-50/30 border-b border-slate-100 p-4 cursor-pointer hover:bg-emerald-50 transition-colors"
-                                onClick={() => setIsPredefinedOpen(!isPredefinedOpen)}
-                            >
-                                <CardTitle className="text-xs font-black uppercase tracking-tighter text-emerald-700 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Star className="h-3 w-3" />
-                                        Predefined Matrix
+                <div className={`space-y-4 transition-all duration-300 ease-in-out transform origin-left ${isSidebarOpen ? 'lg:col-span-1 opacity-100 translate-x-0' : 'hidden opacity-0 -translate-x-full w-0 overflow-hidden'}`}>
+                    {/* Favorites Matrix */}
+                    <Card className="rounded-2xl border-slate-200 border shadow-sm">
+                        <CardHeader
+                            className="bg-emerald-50/30 border-b border-slate-100 p-4 cursor-pointer hover:bg-emerald-50 transition-colors"
+                            onClick={() => setIsPredefinedOpen(!isPredefinedOpen)}
+                        >
+                            <CardTitle className="text-xs font-black uppercase tracking-tighter text-emerald-700 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Star className="h-3 w-3" />
+                                    Predefined Matrix
+                                </div>
+                                <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isPredefinedOpen ? 'rotate-180' : ''}`} />
+                            </CardTitle>
+                        </CardHeader>
+                        <div className={`grid transition-all duration-300 ease-in-out ${isPredefinedOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="overflow-hidden">
+                                <CardContent className="p-3 space-y-1">
+                                    {favorites.map((fav) => (
+                                        <button
+                                            key={fav.name}
+                                            onClick={() => setFavorite(fav.dims)}
+                                            className="w-full text-left px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between group"
+                                        >
+                                            <span className="text-[10px] font-bold uppercase tracking-widest">{fav.name}</span>
+                                            <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-all" />
+                                        </button>
+                                    ))}
+                                </CardContent>
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border-slate-200 border shadow-sm">
+                        <CardHeader
+                            className="bg-slate-50/50 border-b border-slate-100 p-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                            onClick={() => setIsCustomOpen(!isCustomOpen)}
+                        >
+                            <CardTitle className="text-xs font-black uppercase tracking-tighter text-slate-500 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Layers className="h-3 w-3" />
+                                    Custom Hierarchy
+                                </div>
+                                <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCustomOpen ? 'rotate-180' : ''}`} />
+                            </CardTitle>
+                        </CardHeader>
+                        <div className={`grid transition-all duration-300 ease-in-out ${isCustomOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="overflow-hidden">
+                                <CardContent className="p-4 space-y-2">
+                                    <div className="mb-4 space-y-1">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-3 px-1">Active Path</p>
+                                        <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={handleDragEnd}
+                                        >
+                                            <div className="space-y-1.5">
+                                                <SortableContext
+                                                    items={dimensions}
+                                                    strategy={verticalListSortingStrategy}
+                                                >
+                                                    {dimensions.map((dim, idx) => {
+                                                        const label = activeDimensionsOptions.find(o => o.value === dim)?.label || dim;
+                                                        return (
+                                                            <SortableDimensionItem
+                                                                key={dim}
+                                                                id={dim}
+                                                                label={label}
+                                                                index={idx}
+                                                                onRemove={toggleDimension}
+                                                                activeDimensionsLength={dimensions.length}
+                                                            />
+                                                        );
+                                                    })}
+                                                </SortableContext>
+                                            </div>
+                                        </DndContext>
                                     </div>
-                                    <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isPredefinedOpen ? 'rotate-180' : ''}`} />
-                                </CardTitle>
-                            </CardHeader>
-                            <div className={`grid transition-all duration-300 ease-in-out ${isPredefinedOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                                <div className="overflow-hidden">
-                                    <CardContent className="p-3 space-y-1">
-                                        {favorites.map((fav) => (
+                                    <div className="h-px bg-slate-100 mx-1 mb-4" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 px-1">Add Dimensions</p>
+                                    <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                                        {activeDimensionsOptions.filter(opt => !dimensions.includes(opt.value)).map((opt) => (
                                             <button
-                                                key={fav.name}
-                                                onClick={() => setFavorite(fav.dims)}
-                                                className="w-full text-left px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between group"
+                                                key={opt.value}
+                                                onClick={() => toggleDimension(opt.value)}
+                                                className="w-full text-left px-3 py-2 rounded-lg border border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900 group transition-all flex items-center justify-between"
                                             >
-                                                <span className="text-[10px] font-bold uppercase tracking-widest">{fav.name}</span>
-                                                <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-all" />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">{opt.label}</span>
+                                                <PlusCircle className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                             </button>
                                         ))}
-                                    </CardContent>
+                                    </div>
+                                </CardContent>
+                            </div>
+                        </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border-slate-200 border shadow-sm bg-slate-900 text-white">
+                        <CardContent className="p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
+                                    <Download className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Report Output</p>
+                                    <p className="text-xs font-bold">Export Excel</p>
                                 </div>
                             </div>
-                        </Card>
-
-                        <Card className="rounded-2xl border-slate-200 border shadow-sm">
-                            <CardHeader
-                                className="bg-slate-50/50 border-b border-slate-100 p-4 cursor-pointer hover:bg-slate-50 transition-colors"
-                                onClick={() => setIsCustomOpen(!isCustomOpen)}
+                            <Button
+                                onClick={handleExport}
+                                disabled={loading || data.length === 0}
+                                className="w-full bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold uppercase text-[10px] tracking-widest h-11"
                             >
-                                <CardTitle className="text-xs font-black uppercase tracking-tighter text-slate-500 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Layers className="h-3 w-3" />
-                                        Custom Hierarchy
-                                    </div>
-                                    <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isCustomOpen ? 'rotate-180' : ''}`} />
-                                </CardTitle>
-                            </CardHeader>
-                            <div className={`grid transition-all duration-300 ease-in-out ${isCustomOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                                <div className="overflow-hidden">
-                                    <CardContent className="p-4 space-y-2">
-                                        <div className="mb-4 space-y-1">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-3 px-1">Active Path</p>
-                                            <DndContext
-                                                sensors={sensors}
-                                                collisionDetection={closestCenter}
-                                                onDragEnd={handleDragEnd}
-                                            >
-                                                <div className="space-y-1.5">
-                                                    <SortableContext
-                                                        items={dimensions}
-                                                        strategy={verticalListSortingStrategy}
-                                                    >
-                                                        {dimensions.map((dim, idx) => {
-                                                            const label = activeDimensionsOptions.find(o => o.value === dim)?.label || dim;
-                                                            return (
-                                                                <SortableDimensionItem
-                                                                    key={dim}
-                                                                    id={dim}
-                                                                    label={label}
-                                                                    index={idx}
-                                                                    onRemove={toggleDimension}
-                                                                    activeDimensionsLength={dimensions.length}
-                                                                />
-                                                            );
-                                                        })}
-                                                    </SortableContext>
-                                                </div>
-                                            </DndContext>
-                                        </div>
-                                        <div className="h-px bg-slate-100 mx-1 mb-4" />
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 px-1">Add Dimensions</p>
-                                        <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                                            {activeDimensionsOptions.filter(opt => !dimensions.includes(opt.value)).map((opt) => (
-                                                <button
-                                                    key={opt.value}
-                                                    onClick={() => toggleDimension(opt.value)}
-                                                    className="w-full text-left px-3 py-2 rounded-lg border border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900 group transition-all flex items-center justify-between"
-                                                >
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest">{opt.label}</span>
-                                                    <PlusCircle className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </CardContent>
-                                </div>
-                            </div>
-                        </Card>
-
-                        <Card className="rounded-2xl border-slate-200 border shadow-sm bg-slate-900 text-white">
-                            <CardContent className="p-6 space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center">
-                                        <Download className="h-5 w-5 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Report Output</p>
-                                        <p className="text-xs font-bold">Export Excel</p>
-                                    </div>
-                                </div>
-                                <Button
-                                    onClick={handleExport}
-                                    disabled={loading || data.length === 0}
-                                    className="w-full bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold uppercase text-[10px] tracking-widest h-11"
-                                >
-                                    {loading ? "Processing..." : "Download Excel"}
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
+                                {loading ? "Processing..." : "Download Excel"}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
 
                 <div className={`${isSidebarOpen ? 'lg:col-span-4' : 'lg:col-span-5'} space-y-4 transition-all duration-300`}>
                     {isFilterApplied() && !loading && (

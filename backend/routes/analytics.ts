@@ -19,10 +19,10 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
         depot, prodLine, seller, employeeName, dbName, productName
     } = req.query;
 
-    // Support both single "dimension" (legacy) and multi "dimensions" (new)
+    // Support both single/multi "dimension" (legacy) and multi "dimensions" (new)
     const dims: string[] = dimensions
         ? (dimensions as string).split(',')
-        : [dimension as string].filter(Boolean);
+        : dimension ? (dimension as string).split(',') : [];
 
     const validDimensions = ["division", "depot", "prodLine", "category", "brand", "seller", "employeeName", "dbName", "productName"];
 
@@ -93,10 +93,10 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
         siteName, group, source, partyName, productName
     } = req.query;
 
-    // Support both single "dimension" (legacy) and multi "dimensions" (new)
+    // Support both single/multi "dimension" (legacy) and multi "dimensions" (new)
     const dims: string[] = dimensions
         ? (dimensions as string).split(',')
-        : [dimension as string].filter(Boolean);
+        : dimension ? (dimension as string).split(',') : [];
 
     const validDimensions = ["division", "siteName", "group", "category", "brand", "source", "partyName", "productName"];
 
@@ -180,16 +180,16 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
     }
 
     try {
-        const [salesKpi, stockKpi, topProducts] = await Promise.all([
-            prisma.sales.aggregate({
+        const [salesBreakdown, stockBreakdown, topProducts] = await Promise.all([
+            (prisma.sales as any).groupBy({
+                by: ['prodLine'],
                 where: salesWhere,
-                _sum: { dpValue: true, qtyPc: true },
-                _count: { id: true }
+                _sum: { dpValue: true, qtyLtrKg: true }
             }),
-            prisma.stock.aggregate({
+            (prisma.stock as any).groupBy({
+                by: ['category'],
                 where: stockWhere,
-                _sum: { dealerAmount: true, qty: true },
-                _count: { id: true }
+                _sum: { dealerAmount: true, ltrKg: true }
             }),
             (prisma.sales as any).groupBy({
                 by: ['productName'],
@@ -200,12 +200,32 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
             })
         ]);
 
+        // Calculate totals from breakdowns
+        const totalSalesAmount = salesBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.dpValue || 0), 0);
+        const totalSalesVolume = salesBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.qtyLtrKg || 0), 0);
+
+        const totalStockValue = stockBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.dealerAmount || 0), 0);
+        const totalStockVolume = stockBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.ltrKg || 0), 0);
+
         res.json({
-            totalSalesAmount: Number(salesKpi._sum.dpValue || 0),
-            totalSalesQty: Number(salesKpi._sum.qtyPc || 0),
-            totalSalesTransactions: Number(salesKpi._count.id || 0),
-            totalStockValue: Number(stockKpi._sum.dealerAmount || 0),
-            totalStockQty: Number(stockKpi._sum.qty || 0),
+            sales: {
+                totalAmount: totalSalesAmount,
+                totalVolume: totalSalesVolume,
+                breakdown: salesBreakdown.map((item: any) => ({
+                    prodLine: item.prodLine || 'Unknown',
+                    amount: Number(item._sum?.dpValue || 0),
+                    volume: Number(item._sum?.qtyLtrKg || 0)
+                })).sort((a: any, b: any) => b.amount - a.amount)
+            },
+            stock: {
+                totalValue: totalStockValue,
+                totalVolume: totalStockVolume,
+                breakdown: stockBreakdown.map((item: any) => ({
+                    category: item.category || 'Unknown',
+                    value: Number(item._sum?.dealerAmount || 0),
+                    volume: Number(item._sum?.ltrKg || 0)
+                })).sort((a: any, b: any) => b.value - a.value)
+            },
             topProducts: (topProducts || []).map((p: any) => ({
                 ...p,
                 _sum: {
@@ -224,21 +244,54 @@ router.get("/sales-trends", async (req: Request, res: Response): Promise<any> =>
     const { startDate, endDate } = req.query;
 
     try {
-        const start = startDate ? `'${startDate}'` : 'DATE_SUB(NOW(), INTERVAL 30 DAY)';
-        const end = endDate ? `'${endDate}'` : 'NOW()';
+        const where: any = {};
+        if (startDate || endDate) {
+            where.date = {};
+            if (startDate) where.date.gte = new Date(startDate as string);
+            if (endDate) where.date.lte = new Date(endDate as string);
+        } else {
+            const defaultStart = new Date();
+            defaultStart.setDate(defaultStart.getDate() - 30);
+            where.date = { gte: defaultStart };
+        }
 
-        const trends = await prisma.$queryRawUnsafe(`
-            SELECT 
-                DATE(date) as day,
-                SUM(dpValue) as amount,
-                SUM(qtyPc) as qty
-            FROM Sales
-            WHERE date BETWEEN ${start} AND ${end}
-            GROUP BY DATE(date)
-            ORDER BY day ASC
-        `);
+        const rawTrends = await (prisma.sales as any).groupBy({
+            by: ['date', 'prodLine'],
+            where,
+            _sum: {
+                dpValue: true,
+                qtyLtrKg: true
+            },
+            orderBy: {
+                date: 'asc'
+            }
+        });
 
-        res.json(trends);
+        // Pivot the data for Recharts Stacked Area
+        // We want: [{ day: '2023-10-01', 'LineA': 500, 'LineB': 1200 }, ...]
+        const pivotedMap = new Map<string, any>();
+
+        rawTrends.forEach((item: any) => {
+            if (!item.date) return;
+            const dayStr = new Date(item.date).toISOString().split('T')[0];
+            const line = item.prodLine || 'Unknown';
+            const val = Number(item._sum?.dpValue || 0);
+
+            if (!pivotedMap.has(dayStr)) {
+                pivotedMap.set(dayStr, { day: dayStr, total: 0 });
+            }
+
+            const dayObj = pivotedMap.get(dayStr);
+            dayObj[line] = (dayObj[line] || 0) + val;
+            dayObj.total += val;
+        });
+
+        // Convert map to array and sort chronologically
+        const finalTrends = Array.from(pivotedMap.values()).sort((a, b) =>
+            new Date(a.day).getTime() - new Date(b.day).getTime()
+        );
+
+        res.json(finalTrends);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Failed to fetch sales trends" });
@@ -257,60 +310,47 @@ router.get("/filter-options", async (req: Request, res: Response): Promise<any> 
             return res.json(optionsCache);
         }
 
-        // Batching queries to prevent connection pool exhaustion
-        const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+        // Execute queries sequentially to prevent Prisma connection pool exhaustion (P2024 limit 13)
+        const salesBrands = await prisma.sales.findMany({ select: { brand: true }, distinct: ['brand'] });
+        const salesDivisions = await prisma.sales.findMany({ select: { division: true }, distinct: ['division'] });
+        const salesCategories = await prisma.sales.findMany({ select: { category: true }, distinct: ['category'] });
+        const salesDepots = await prisma.sales.findMany({ select: { depot: true }, distinct: ['depot'] });
+        const salesProdLines = await prisma.sales.findMany({ select: { prodLine: true }, distinct: ['prodLine'] });
+        const salesSellers = await prisma.sales.findMany({ select: { seller: true }, distinct: ['seller'] });
+        const salesEmployeeNames = await prisma.sales.findMany({ select: { employeeName: true }, distinct: ['employeeName'] });
+        const salesDbNames = await prisma.sales.findMany({ select: { dbName: true }, distinct: ['dbName'] });
+        const salesProductNames = await prisma.sales.findMany({ select: { productName: true }, distinct: ['productName'] });
 
-        const batch1 = await Promise.all([
-            prisma.sales.findMany({ select: { brand: true }, distinct: ['brand'] }),
-            prisma.sales.findMany({ select: { division: true }, distinct: ['division'] }),
-            prisma.sales.findMany({ select: { category: true }, distinct: ['category'] }),
-            prisma.sales.findMany({ select: { depot: true }, distinct: ['depot'] }),
-            prisma.sales.findMany({ select: { prodLine: true }, distinct: ['prodLine'] }),
-            prisma.sales.findMany({ select: { seller: true }, distinct: ['seller'] }),
-        ]);
-
-        await delay(200);
-
-        const batch2 = await Promise.all([
-            prisma.sales.findMany({ select: { employeeName: true }, distinct: ['employeeName'] }),
-            prisma.sales.findMany({ select: { dbName: true }, distinct: ['dbName'] }),
-            prisma.sales.findMany({ select: { productName: true }, distinct: ['productName'] }),
-            prisma.stock.findMany({ select: { brand: true }, distinct: ['brand'] }),
-            prisma.stock.findMany({ select: { division: true }, distinct: ['division'] }),
-            prisma.stock.findMany({ select: { category: true }, distinct: ['category'] }),
-        ]);
-
-        await delay(200);
-
-        const batch3 = await Promise.all([
-            prisma.stock.findMany({ select: { siteName: true }, distinct: ['siteName'] }),
-            prisma.stock.findMany({ select: { group: true }, distinct: ['group'] }),
-            prisma.stock.findMany({ select: { source: true }, distinct: ['source'] }),
-            prisma.stock.findMany({ select: { partyName: true }, distinct: ['partyName'] }),
-            prisma.stock.findMany({ select: { productName: true }, distinct: ['productName'] }),
-        ]);
+        const stockBrands = await prisma.stock.findMany({ select: { brand: true }, distinct: ['brand'] });
+        const stockDivisions = await prisma.stock.findMany({ select: { division: true }, distinct: ['division'] });
+        const stockCategories = await prisma.stock.findMany({ select: { category: true }, distinct: ['category'] });
+        const stockSiteNames = await prisma.stock.findMany({ select: { siteName: true }, distinct: ['siteName'] });
+        const stockGroups = await prisma.stock.findMany({ select: { group: true }, distinct: ['group'] });
+        const stockSources = await prisma.stock.findMany({ select: { source: true }, distinct: ['source'] });
+        const stockPartyNames = await prisma.stock.findMany({ select: { partyName: true }, distinct: ['partyName'] });
+        const stockProductNames = await prisma.stock.findMany({ select: { productName: true }, distinct: ['productName'] });
 
         const combinedOptions = {
             sales: {
-                brands: batch1[0].map((i: any) => i.brand).filter(Boolean).sort(),
-                divisions: batch1[1].map((i: any) => i.division).filter(Boolean).sort(),
-                categories: batch1[2].map((i: any) => i.category).filter(Boolean).sort(),
-                depots: batch1[3].map((i: any) => i.depot).filter(Boolean).sort(),
-                prodLines: batch1[4].map((i: any) => i.prodLine).filter(Boolean).sort(),
-                sellers: batch1[5].map((i: any) => i.seller).filter(Boolean).sort(),
-                employeeNames: batch2[0].map((i: any) => i.employeeName).filter(Boolean).sort(),
-                dbNames: batch2[1].map((i: any) => i.dbName).filter(Boolean).sort(),
-                products: batch2[2].map((i: any) => i.productName).filter(Boolean).sort(),
+                brands: salesBrands.map((i: any) => i.brand).filter(Boolean).sort(),
+                divisions: salesDivisions.map((i: any) => i.division).filter(Boolean).sort(),
+                categories: salesCategories.map((i: any) => i.category).filter(Boolean).sort(),
+                depots: salesDepots.map((i: any) => i.depot).filter(Boolean).sort(),
+                prodLines: salesProdLines.map((i: any) => i.prodLine).filter(Boolean).sort(),
+                sellers: salesSellers.map((i: any) => i.seller).filter(Boolean).sort(),
+                employeeNames: salesEmployeeNames.map((i: any) => i.employeeName).filter(Boolean).sort(),
+                dbNames: salesDbNames.map((i: any) => i.dbName).filter(Boolean).sort(),
+                products: salesProductNames.map((i: any) => i.productName).filter(Boolean).sort(),
             },
             stock: {
-                brands: batch2[3].map((i: any) => i.brand).filter(Boolean).sort(),
-                divisions: batch2[4].map((i: any) => i.division).filter(Boolean).sort(),
-                categories: batch2[5].map((i: any) => i.category).filter(Boolean).sort(),
-                siteNames: batch3[0].map((i: any) => i.siteName).filter(Boolean).sort(),
-                groups: batch3[1].map((i: any) => i.group).filter(Boolean).sort(),
-                sources: batch3[2].map((i: any) => i.source).filter(Boolean).sort(),
-                parties: batch3[3].map((i: any) => i.partyName).filter(Boolean).sort(),
-                products: batch3[4].map((i: any) => i.productName).filter(Boolean).sort(),
+                brands: stockBrands.map((i: any) => i.brand).filter(Boolean).sort(),
+                divisions: stockDivisions.map((i: any) => i.division).filter(Boolean).sort(),
+                categories: stockCategories.map((i: any) => i.category).filter(Boolean).sort(),
+                siteNames: stockSiteNames.map((i: any) => i.siteName).filter(Boolean).sort(),
+                groups: stockGroups.map((i: any) => i.group).filter(Boolean).sort(),
+                sources: stockSources.map((i: any) => i.source).filter(Boolean).sort(),
+                parties: stockPartyNames.map((i: any) => i.partyName).filter(Boolean).sort(),
+                products: stockProductNames.map((i: any) => i.productName).filter(Boolean).sort(),
             }
         };
 

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="bar1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="bar2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="bar3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  
+  <g filter="url(#shadow)">
+    <!-- Bar 1 (Left, Short) -->
+    <rect x="120" y="270" width="64" height="120" rx="16" fill="url(#bar1)" />
+    
+    <!-- Bar 2 (Middle, Tall) -->
+    <rect x="224" y="140" width="64" height="250" rx="16" fill="url(#bar2)" />
+    
+    <!-- Bar 3 (Right, Medium) -->
+    <rect x="328" y="200" width="64" height="190" rx="16" fill="url(#bar3)" />
+  </g>
+
+  <!-- Upward Trend Line connecting the tops of the bars -->
+  <path d="M152 286 L256 156 L360 216" fill="none" stroke="#f8fafc" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)" />
+  
+  <!-- Trend Arrow Head -->
+  <path d="M330 200 L376 200 L376 246" fill="none" stroke="#f8fafc" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)" />
+</svg>
