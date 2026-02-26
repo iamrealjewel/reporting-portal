@@ -257,7 +257,8 @@ export default function SalesSummaries() {
                 const row: any = {};
                 dimensions.forEach(dim => {
                     const label = activeDimensionsOptions.find(o => o.value === dim)?.label || dim.toUpperCase();
-                    row[label] = item[dim] || "N/A";
+                    const val = item[dim] || "N/A";
+                    row[label] = dim.toLowerCase().includes('date') && val !== "N/A" ? new Date(val).toISOString().split('T')[0] : val;
                 });
                 row["NET QUANTITY"] = item._sum?.qtyPc || 0;
                 row["TOTAL VOLUME (Ltr/Kg)"] = item._sum?.qtyLtrKg || 0;
