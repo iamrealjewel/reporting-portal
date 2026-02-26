@@ -24,7 +24,7 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
         ? (dimensions as string).split(',')
         : dimension ? (dimension as string).split(',') : [];
 
-    const validDimensions = ["division", "depot", "prodLine", "category", "brand", "seller", "employeeName", "dbName", "productName"];
+    const validDimensions = ["date", "division", "depot", "prodLine", "category", "brand", "seller", "employeeName", "dbName", "productName"];
 
     const invalidDims = dims.filter(d => !validDimensions.includes(d));
     if (dims.length === 0 || invalidDims.length > 0) {
@@ -100,7 +100,7 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
         ? (dimensions as string).split(',')
         : dimension ? (dimension as string).split(',') : [];
 
-    const validDimensions = ["division", "siteName", "prodLine", "category", "brand", "source", "partyName", "productName"];
+    const validDimensions = ["stockDate", "division", "siteName", "prodLine", "category", "brand", "source", "partyName", "productName"];
 
     const invalidDims = dims.filter(d => !validDimensions.includes(d));
     if (dims.length === 0 || invalidDims.length > 0) {

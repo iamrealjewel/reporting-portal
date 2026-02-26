@@ -279,7 +279,7 @@ export default function SalesSummaries() {
     };
 
     const activeDimensionsOptions = [
-        { label: "Date", value: "salesDate" },
+        { label: "Date", value: "date" },
         { label: "Division", value: "division" },
         { label: "Depot", value: "depot" },
         { label: "Product Line", value: "prodLine" },
