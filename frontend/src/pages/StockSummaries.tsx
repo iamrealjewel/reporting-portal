@@ -96,8 +96,7 @@ export default function StockSummaries() {
 
     // Filters State
     const [filters, setFilters] = useState({
-        startDate: "",
-        endDate: "",
+        stockDate: "",
         brand: [] as string[],
         division: [] as string[],
         category: [] as string[],
@@ -167,8 +166,7 @@ export default function StockSummaries() {
 
     const isFilterApplied = () => {
         return !!(
-            filters.startDate ||
-            filters.endDate ||
+            filters.stockDate ||
             filters.brand.length > 0 ||
             filters.division.length > 0 ||
             filters.category.length > 0 ||
@@ -186,8 +184,7 @@ export default function StockSummaries() {
         try {
             const params = new URLSearchParams();
             params.append("dimensions", dimensions.join(","));
-            if (filters.startDate) params.append("startDate", filters.startDate);
-            if (filters.endDate) params.append("endDate", filters.endDate);
+            if (filters.stockDate) params.append("stockDate", filters.stockDate);
 
             Object.entries(filters).forEach(([key, value]) => {
                 if (Array.isArray(value) && value.length > 0) {
@@ -233,8 +230,7 @@ export default function StockSummaries() {
 
     const resetFilters = () => {
         setFilters({
-            startDate: "",
-            endDate: "",
+            stockDate: "",
             brand: [],
             division: [],
             category: [],
@@ -317,17 +313,11 @@ export default function StockSummaries() {
             <div className="bg-white border border-slate-200 p-2.5 rounded-2xl shadow-sm flex flex-wrap items-center gap-2 overflow-visible sticky top-0 z-50">
                 <div className="flex items-center gap-1.5 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-100">
                     <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Stock Date:</span>
                     <Input
                         type="date"
-                        value={filters.startDate}
-                        onChange={(e: any) => setFilters(f => ({ ...f, startDate: e.target.value }))}
-                        className="h-7 w-32 text-[10px] font-bold border-none bg-transparent focus-visible:ring-0 p-0"
-                    />
-                    <span className="text-slate-300 font-bold px-1">to</span>
-                    <Input
-                        type="date"
-                        value={filters.endDate}
-                        onChange={(e: any) => setFilters(f => ({ ...f, endDate: e.target.value }))}
+                        value={filters.stockDate}
+                        onChange={(e: any) => setFilters(f => ({ ...f, stockDate: e.target.value }))}
                         className="h-7 w-32 text-[10px] font-bold border-none bg-transparent focus-visible:ring-0 p-0"
                     />
                 </div>
@@ -616,6 +606,12 @@ export default function StockSummaries() {
                                         <TableRow>
                                             <TableCell colSpan={dimensions.length + 4} className="h-[400px] text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
                                                 Select filters to generate matrix
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : data.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={dimensions.length + 4} className="h-[400px] text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                                No results found for the selected filters
                                             </TableCell>
                                         </TableRow>
                                     ) : (

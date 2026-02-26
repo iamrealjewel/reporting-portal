@@ -63,6 +63,7 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
                 qtyPc: true,
                 dpValue: true,
                 tpValue: true,
+                qtyLtrKg: true
             },
             _count: {
                 id: true,
@@ -76,6 +77,7 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
                 qtyPc: Number(item._sum?.qtyPc || 0),
                 dpValue: Number(item._sum?.dpValue || 0),
                 tpValue: Number(item._sum?.tpValue || 0),
+                qtyLtrKg: Number(item._sum?.qtyLtrKg || 0)
             }
         }));
 
@@ -89,7 +91,7 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
 // 2. Stock Summary by Dimension(s)
 router.get("/stock-summary", async (req: Request, res: Response): Promise<any> => {
     const {
-        dimension, dimensions, startDate, endDate, division, brand, category,
+        dimension, dimensions, startDate, endDate, stockDate, division, brand, category,
         siteName, group, prodLine, source, partyName, productName
     } = req.query;
 
@@ -106,7 +108,14 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
     }
 
     const where: any = {};
-    if (startDate && endDate) {
+    if (stockDate) {
+        const date = new Date(stockDate as string);
+        const start = new Date(date);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(date);
+        end.setHours(23, 59, 59, 999);
+        where.stockDate = { gte: start, lte: end };
+    } else if (startDate && endDate) {
         where.stockDate = {
             gte: new Date(startDate as string),
             lte: new Date(endDate as string)
@@ -191,7 +200,7 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
                 _sum: { dpValue: true, qtyLtrKg: true }
             }),
             (prisma.stock as any).groupBy({
-                by: ['category'],
+                by: ['prodLine'],
                 where: stockWhere,
                 _sum: { dealerAmount: true, ltrKg: true }
             }),
@@ -256,7 +265,7 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
                 totalValue: totalStockValue,
                 totalVolume: totalStockVolume,
                 breakdown: stockBreakdown.map((item: any) => ({
-                    category: item.category || 'Unknown',
+                    prodLine: item.prodLine || 'Unknown',
                     value: Number(item._sum?.dealerAmount || 0),
                     volume: Number(item._sum?.ltrKg || 0)
                 })).sort((a: any, b: any) => b.value - a.value)

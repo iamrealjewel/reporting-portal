@@ -260,6 +260,7 @@ export default function SalesSummaries() {
                     row[label] = item[dim] || "N/A";
                 });
                 row["NET QUANTITY"] = item._sum?.qtyPc || 0;
+                row["TOTAL VOLUME (Ltr/Kg)"] = item._sum?.qtyLtrKg || 0;
                 row["DP VALUE"] = item._sum?.dpValue || 0;
                 row["TP VALUE"] = item._sum?.tpValue || 0;
                 return row;
@@ -621,6 +622,12 @@ export default function SalesSummaries() {
                                         <TableRow>
                                             <TableCell colSpan={dimensions.length + 4} className="h-[400px] text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
                                                 Select filters to generate matrix
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : data.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={dimensions.length + 4} className="h-[400px] text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                                No results found for the selected filters
                                             </TableCell>
                                         </TableRow>
                                     ) : (

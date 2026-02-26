@@ -44,6 +44,12 @@ const formatValue = (val: any) => {
     return Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const shortenDivision = (name: string) => {
+    if (!name) return 'N/A';
+    // Remove "Div Sales Ctr" or "Div Sales Cntr" explicitly (case-insensitive)
+    return name.replace(/\s+Div\s+Sales\s+Cnt?r?\.?\b/gi, '').trim();
+};
+
 export default function Dashboard() {
     const [kpis, setKpis] = useState<any>(null);
     const [trends, setTrends] = useState<any[]>([]);
@@ -102,11 +108,18 @@ export default function Dashboard() {
                 api.get(`/analytics/dashboard-kpis${qPrefix}`),
                 api.get(`/analytics/sales-trends${qPrefix}`),
                 api.get(`/analytics/sales-summary?dimension=${dimension}${qAnd}`),
-                api.get(`/analytics/stock-summary?dimension=division,category`),
+                api.get(`/analytics/stock-summary?dimension=division,prodLine${qAnd}`),
                 api.get(`/analytics/sales-summary?dimension=division,prodLine${qAnd}`)
             ]);
 
-            setKpis(kpiRes.data);
+            const kpiData = kpiRes.data;
+            setKpis({
+                ...kpiData,
+                topDivisions: (kpiData.topDivisions || []).map((d: any) => ({ ...d, name: shortenDivision(d.name) })),
+                topSites: (kpiData.topSites || []).map((s: any) => ({ ...s, name: s.name })),
+                topDistributors: (kpiData.topDistributors || []).map((d: any) => ({ ...d, name: d.name })),
+                topBrands: (kpiData.topBrands || []).map((b: any) => ({ ...b, name: b.name }))
+            });
             setTrends((trendRes.data || []).map((t: any) => ({
                 ...t,
                 day: t.day // Keep raw ISO string for formatting
@@ -114,14 +127,17 @@ export default function Dashboard() {
 
             setSummaryData((summaryRes.data || []).map((item: any) => {
                 const dims = dimension.split(',');
-                const label = dims.map(d => item[d] || 'N/A').join(' \u2192 ');
+                const label = dims.map(d => {
+                    const val = item[d] || 'N/A';
+                    return d === 'division' ? shortenDivision(val) : val;
+                }).join(' \u2192 ');
                 return { ...item, chartLabel: label };
             }));
 
             const stockVolMap = new Map<string, any>();
             (stockRes.data || []).forEach((item: any) => {
-                const div = String(item.division || 'General');
-                const cat = String(item.category || 'Other');
+                const div = shortenDivision(item.division || 'General');
+                const line = String(item.prodLine || 'Other');
                 const val = Number(item._sum?.ltrKg || 0);
 
                 if (val > 0) {
@@ -129,7 +145,7 @@ export default function Dashboard() {
                         stockVolMap.set(div, { division: div, total: 0 });
                     }
                     const divObj = stockVolMap.get(div);
-                    divObj[cat] = (divObj[cat] || 0) + val;
+                    divObj[line] = (divObj[line] || 0) + val;
                     divObj.total += val;
                 }
             });
@@ -139,7 +155,7 @@ export default function Dashboard() {
             // Pivot explicit Sales Division map for Stacked Bar (grouped by division, stacked by prodLine)
             const divMap = new Map<string, any>();
             (stackedDivRes.data || []).forEach((item: any) => {
-                const div = item.division || 'Unknown';
+                const div = shortenDivision(item.division || 'Unknown');
                 const line = item.prodLine || 'Unknown';
                 const val = Number(item._sum?.dpValue || 0);
 
@@ -258,7 +274,7 @@ export default function Dashboard() {
                     border="border-blue-100"
                     breakdownStyle="list"
                     breakdown={kpis?.stock?.breakdown?.map((b: any) => ({
-                        label: b.category,
+                        label: b.prodLine,
                         value: `${formatValue(b.value || 0)}`,
                         percentage: kpis?.stock?.totalValue ? ((b.value || 0) / kpis.stock.totalValue) * 100 : 0
                     }))}
@@ -419,7 +435,7 @@ export default function Dashboard() {
                     <CardContent className="p-6">
                         <div className="h-[600px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stackedDivisionData} margin={{ top: 20, right: 30, left: 40, bottom: 60 }}>
+                                <BarChart data={stackedDivisionData} margin={{ top: 20, right: 30, left: 40, bottom: 80 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis
                                         dataKey="division"
@@ -430,7 +446,7 @@ export default function Dashboard() {
                                         interval={0}
                                         angle={-45}
                                         textAnchor="end"
-                                        height={60}
+                                        height={80}
                                     />
                                     <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `৳${formatCompactNumber(val)}`} />
                                     <Tooltip
@@ -462,13 +478,13 @@ export default function Dashboard() {
                 <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden">
                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
                         <CardTitle className="text-lg font-bold text-slate-900">Inventory Mix</CardTitle>
-                        <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Distribution by Category (Volume in Lt/Kg)</p>
+                        <p className="text-slate-400 text-xs font-medium uppercase tracking-widest mt-1">Distribution by Product Line (Volume in Lt/Kg)</p>
                     </CardHeader>
                     <CardContent className="p-6">
                         <div className="h-[600px] w-full flex items-center justify-center">
                             {stockByCat.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stockByCat} margin={{ top: 20, right: 30, left: 40, bottom: 60 }}>
+                                    <BarChart data={stockByCat} margin={{ top: 20, right: 30, left: 40, bottom: 80 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis
                                             dataKey="division"
@@ -479,7 +495,7 @@ export default function Dashboard() {
                                             interval={0}
                                             angle={-45}
                                             textAnchor="end"
-                                            height={60}
+                                            height={80}
                                         />
                                         <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${formatCompactNumber(val)} Kg`} />
                                         <Tooltip
