@@ -279,6 +279,7 @@ export default function SalesSummaries() {
     };
 
     const activeDimensionsOptions = [
+        { label: "Date", value: "salesDate" },
         { label: "Division", value: "division" },
         { label: "Depot", value: "depot" },
         { label: "Product Line", value: "prodLine" },
@@ -653,11 +654,15 @@ export default function SalesSummaries() {
 
                                             return paginatedData.map((item, idx) => (
                                                 <TableRow key={idx} className="hover:bg-slate-50/30 transition-colors">
-                                                    {dimensions.map(dim => (
-                                                        <TableCell key={dim} className="py-2.5 px-6 border-r border-slate-50 last:border-0 whitespace-nowrap">
-                                                            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">{item[dim] || "N/A"}</span>
-                                                        </TableCell>
-                                                    ))}
+                                                    {dimensions.map(dim => {
+                                                        const val = item[dim] || "N/A";
+                                                        const displayVal = dim.toLowerCase().includes('date') ? new Date(val).toLocaleDateString() : val;
+                                                        return (
+                                                            <TableCell key={dim} className="py-2.5 px-6 border-r border-slate-50 last:border-0 whitespace-nowrap">
+                                                                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">{displayVal}</span>
+                                                            </TableCell>
+                                                        );
+                                                    })}
                                                     <TableCell className="py-2.5 px-6 text-right font-mono text-[11px] text-slate-600 whitespace-nowrap bg-slate-50/30">
                                                         {(item._sum?.qtyPc || 0).toLocaleString()} <span className="text-[9px] text-slate-400">pc</span>
                                                     </TableCell>
