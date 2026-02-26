@@ -102,7 +102,7 @@ export default function StockSummaries() {
         division: [] as string[],
         category: [] as string[],
         siteName: [] as string[],
-        group: [] as string[],
+        prodLine: [] as string[],
         source: [] as string[],
         partyName: [] as string[],
         productName: [] as string[]
@@ -173,7 +173,7 @@ export default function StockSummaries() {
             filters.division.length > 0 ||
             filters.category.length > 0 ||
             filters.siteName.length > 0 ||
-            filters.group.length > 0 ||
+            filters.prodLine.length > 0 ||
             filters.source.length > 0 ||
             filters.partyName.length > 0 ||
             filters.productName.length > 0
@@ -239,7 +239,7 @@ export default function StockSummaries() {
             division: [],
             category: [],
             siteName: [],
-            group: [],
+            prodLine: [],
             source: [],
             partyName: [],
             productName: []
@@ -279,7 +279,7 @@ export default function StockSummaries() {
         { label: "Site Name", value: "siteName" },
         { label: "Category", value: "category" },
         { label: "Brand", value: "brand" },
-        { label: "Group", value: "group" },
+        { label: "Product Line", value: "prodLine" },
         { label: "Source", value: "source" },
         { label: "ProductName", value: "productName" },
     ];
@@ -287,7 +287,7 @@ export default function StockSummaries() {
     const favorites = [
         { name: "Division by Site", dims: ["division", "siteName"] },
         { name: "Division by Brand", dims: ["division", "brand"] },
-        { name: "Group by Division", dims: ["group", "division"] },
+        { name: "Product Line by Division", dims: ["prodLine", "division"] },
         { name: "Category by Division", dims: ["category", "division"] },
     ];
 
@@ -359,10 +359,10 @@ export default function StockSummaries() {
                     options={options?.stock?.brands}
                 />
                 <MultiSelectFilter
-                    label="Group"
-                    selectedValues={filters.group}
-                    onChange={(vals: string[]) => setFilters(f => ({ ...f, group: vals }))}
-                    options={options?.stock?.groups}
+                    label="Product Line"
+                    selectedValues={filters.prodLine}
+                    onChange={(vals: string[]) => setFilters(f => ({ ...f, prodLine: vals }))}
+                    options={options?.stock?.prodLines}
                 />
                 <MultiSelectFilter
                     label="Product"

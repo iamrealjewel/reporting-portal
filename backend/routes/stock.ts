@@ -116,7 +116,7 @@ router.post("/import", requirePermission("import_stock"), upload.single("file"),
                             distCode: String(getVal(row, ["Dist. Code", "DistCode"]) || ""),
                             source: String(getVal(row, ["Source"]) || ""),
                             partyName: String(getVal(row, ["Party Name", "PartyName"]) || ""),
-                            group: String(getVal(row, ["Group"]) || ""),
+                            prodLine: String(getVal(row, ["Product Line", "ProdLine", "Group"]) || ""),
                             category: String(getVal(row, ["Category"]) || ""),
                             brand: String(getVal(row, ["Brand"]) || ""),
                             productCode: String(getVal(row, ["Product SKU", "ProductCode", "SKU"]) || ""),
@@ -184,9 +184,9 @@ router.post("/import", requirePermission("import_stock"), upload.single("file"),
 // Get unique values for filters
 router.get("/options", requirePermission("view_stock_reports"), async (req: Request, res: Response): Promise<any> => {
     try {
-        const [divisions, groups, categories, brands, sites, productCodes, productNames] = await Promise.all([
+        const [divisions, prodLines, categories, brands, sites, productCodes, productNames] = await Promise.all([
             prisma.stock.findMany({ select: { division: true }, distinct: ['division'] }),
-            prisma.stock.findMany({ select: { group: true }, distinct: ['group'] }),
+            prisma.stock.findMany({ select: { prodLine: true }, distinct: ['prodLine'] }),
             prisma.stock.findMany({ select: { category: true }, distinct: ['category'] }),
             prisma.stock.findMany({ select: { brand: true }, distinct: ['brand'] }),
             prisma.stock.findMany({ select: { siteName: true }, distinct: ['siteName'] }),
@@ -196,7 +196,7 @@ router.get("/options", requirePermission("view_stock_reports"), async (req: Requ
 
         res.json({
             divisions: divisions.map(i => i.division).filter(Boolean),
-            groups: groups.map(i => i.group).filter(Boolean),
+            prodLines: prodLines.map(i => i.prodLine).filter(Boolean),
             categories: categories.map(i => i.category).filter(Boolean),
             brands: brands.map(i => i.brand).filter(Boolean),
             siteNames: sites.map(i => i.siteName).filter(Boolean),
@@ -210,7 +210,7 @@ router.get("/options", requirePermission("view_stock_reports"), async (req: Requ
 
 // View stock reports
 router.get("/report", requirePermission("view_stock_reports"), async (req: Request, res: Response): Promise<any> => {
-    const { division, productName, productCode, siteName, group, category, brand, startDate, endDate } = req.query;
+    const { division, productName, productCode, siteName, prodLine, category, brand, startDate, endDate } = req.query;
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
@@ -230,7 +230,7 @@ router.get("/report", requirePermission("view_stock_reports"), async (req: Reque
 
     applyFilter('division', division);
     applyFilter('siteName', siteName);
-    applyFilter('group', group);
+    applyFilter('prodLine', prodLine);
     applyFilter('category', category);
     applyFilter('brand', brand);
     applyFilter('productName', productName);

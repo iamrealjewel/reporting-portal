@@ -89,7 +89,7 @@ const HeaderFilter = ({
             column === "siteName" ? options.siteNames :
                 column === "category" ? options.categories :
                     column === "brand" ? options.brands :
-                        column === "group" ? options.groups :
+                        column === "prodLine" ? options.prodLines :
                             column === "productCode" ? options.productCodes :
                                 column === "productName" ? options.productNames : [];
 
@@ -220,7 +220,7 @@ export default function StockReport() {
         productCode: [] as string[],
         productName: [] as string[],
         siteName: [] as string[],
-        group: [] as string[],
+        prodLine: [] as string[],
         category: [] as string[],
         brand: [] as string[],
         startDate: "",
@@ -231,7 +231,7 @@ export default function StockReport() {
 
     const [options, setOptions] = useState({
         divisions: [] as string[],
-        groups: [] as string[],
+        prodLines: [] as string[],
         categories: [] as string[],
         brands: [] as string[],
         siteNames: [] as string[],
@@ -258,7 +258,7 @@ export default function StockReport() {
         distCode: false,
         source: false,
         partyName: true,
-        group: false,
+        prodLine: false,
         category: true,
         brand: true,
         productCode: true,
@@ -573,7 +573,7 @@ export default function StockReport() {
                                     {visibleColumns.distCode && <TableHead className="text-[10px] font-bold uppercase tracking-widest text-slate-500 py-4 px-3">Dist. Code</TableHead>}
                                     {visibleColumns.source && <TableHead className="text-[10px] font-bold uppercase tracking-widest text-slate-500 py-4 px-3">Source</TableHead>}
                                     {visibleColumns.partyName && <TableHead className="text-[10px] font-bold uppercase tracking-widest text-slate-500 py-4 px-3">Party Name</TableHead>}
-                                    {visibleColumns.group && <HeaderFilter label="Group" column="group" filters={filters} setFilters={setFilters} fetchStock={fetchStock} options={options} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} filterSearch={filterSearch} setFilterSearch={setFilterSearch} />}
+                                    {visibleColumns.prodLine && <HeaderFilter label="Product Line" column="prodLine" filters={filters} setFilters={setFilters} fetchStock={fetchStock} options={options} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} filterSearch={filterSearch} setFilterSearch={setFilterSearch} />}
                                     {visibleColumns.category && <HeaderFilter label="Category" column="category" filters={filters} setFilters={setFilters} fetchStock={fetchStock} options={options} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} filterSearch={filterSearch} setFilterSearch={setFilterSearch} />}
                                     {visibleColumns.brand && <HeaderFilter label="Brand" column="brand" filters={filters} setFilters={setFilters} fetchStock={fetchStock} options={options} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} filterSearch={filterSearch} setFilterSearch={setFilterSearch} />}
                                     {visibleColumns.productCode && <HeaderFilter label="SKU" column="productCode" filters={filters} setFilters={setFilters} fetchStock={fetchStock} options={options} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} filterSearch={filterSearch} setFilterSearch={setFilterSearch} />}
@@ -610,7 +610,7 @@ export default function StockReport() {
                                             {visibleColumns.distCode && <TableCell className="py-4 text-[10px] font-mono text-slate-400">{item.distCode}</TableCell>}
                                             {visibleColumns.source && <TableCell className="py-4 text-[10px] text-slate-500 italic">{item.source}</TableCell>}
                                             {visibleColumns.partyName && <TableCell className="py-4 text-[10px] font-bold text-slate-800 uppercase">{item.partyName}</TableCell>}
-                                            {visibleColumns.group && <TableCell className="py-4 text-[10px] text-slate-500">{item.group}</TableCell>}
+                                            {visibleColumns.prodLine && <TableCell className="py-4 text-[10px] text-slate-500">{item.prodLine}</TableCell>}
                                             {visibleColumns.category && <TableCell className="py-4 text-[10px] text-slate-500">{item.category}</TableCell>}
                                             {visibleColumns.brand && <TableCell className="py-4 text-[10px] font-bold text-blue-600 uppercase">{item.brand}</TableCell>}
                                             {visibleColumns.productCode && <TableCell className="py-4 text-[10px] font-mono font-bold text-slate-400">{item.productCode}</TableCell>}

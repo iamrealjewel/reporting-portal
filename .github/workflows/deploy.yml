@@ -55,6 +55,12 @@ jobs:
           mkdir -p deploy/tmp
           touch deploy/tmp/restart.txt
 
+      - name: Create Prisma Client Zip for CloudLinux
+        run: |
+          cd backend/node_modules
+          zip -r ../../deploy/prisma_client_cloudlinux.zip .prisma @prisma
+          cd ../..
+
       - name: Deploy to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:

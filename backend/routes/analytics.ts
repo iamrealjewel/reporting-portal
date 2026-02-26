@@ -90,7 +90,7 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
 router.get("/stock-summary", async (req: Request, res: Response): Promise<any> => {
     const {
         dimension, dimensions, startDate, endDate, division, brand, category,
-        siteName, group, source, partyName, productName
+        siteName, group, prodLine, source, partyName, productName
     } = req.query;
 
     // Support both single/multi "dimension" (legacy) and multi "dimensions" (new)
@@ -98,7 +98,7 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
         ? (dimensions as string).split(',')
         : dimension ? (dimension as string).split(',') : [];
 
-    const validDimensions = ["division", "siteName", "group", "category", "brand", "source", "partyName", "productName"];
+    const validDimensions = ["division", "siteName", "prodLine", "category", "brand", "source", "partyName", "productName"];
 
     const invalidDims = dims.filter(d => !validDimensions.includes(d));
     if (dims.length === 0 || invalidDims.length > 0) {
@@ -106,10 +106,11 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
     }
 
     const where: any = {};
-    if (startDate || endDate) {
-        where.stockDate = {};
-        if (startDate) where.stockDate.gte = new Date(startDate as string);
-        if (endDate) where.stockDate.lte = new Date(endDate as string);
+    if (startDate && endDate) {
+        where.stockDate = {
+            gte: new Date(startDate as string),
+            lte: new Date(endDate as string)
+        };
     }
 
     const filters = [
@@ -117,7 +118,7 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
         { key: 'brand', val: brand },
         { key: 'category', val: category },
         { key: 'siteName', val: siteName },
-        { key: 'group', val: group },
+        { key: 'prodLine', val: group || prodLine },
         { key: 'source', val: source },
         { key: 'partyName', val: partyName },
         { key: 'productName', val: productName }
@@ -134,6 +135,7 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
             where,
             _sum: {
                 qty: true,
+                ltrKg: true,
                 dealerAmount: true,
                 retailerAmount: true,
             },
@@ -147,6 +149,7 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
             ...item,
             _sum: {
                 qty: Number(item._sum?.qty || 0),
+                ltrKg: Number(item._sum?.ltrKg || 0),
                 dealerAmount: Number(item._sum?.dealerAmount || 0),
                 retailerAmount: Number(item._sum?.retailerAmount || 0),
             }
@@ -174,13 +177,14 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
         }
         if (endDate) {
             const end = new Date(endDate as string);
+            end.setHours(23, 59, 59, 999); // Make end date inclusive of the entire day
             salesWhere.date = { ...salesWhere.date, lte: end };
             stockWhere.stockDate = { ...stockWhere.stockDate, lte: end };
         }
     }
 
     try {
-        const [salesBreakdown, stockBreakdown, topProducts] = await Promise.all([
+        const [salesBreakdown, stockBreakdown, topProducts, topDivisions, topSites, topDistributors, topBrands] = await Promise.all([
             (prisma.sales as any).groupBy({
                 by: ['prodLine'],
                 where: salesWhere,
@@ -196,16 +200,47 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
                 where: salesWhere,
                 _sum: { dpValue: true },
                 orderBy: { _sum: { dpValue: 'desc' } },
-                take: 5
+                take: 10
+            }),
+            (prisma.sales as any).groupBy({
+                by: ['division'],
+                where: salesWhere,
+                _sum: { dpValue: true },
+                orderBy: { _sum: { dpValue: 'desc' } },
+                take: 10
+            }),
+            (prisma.sales as any).groupBy({
+                by: ['depot'],
+                where: salesWhere,
+                _sum: { dpValue: true },
+                orderBy: { _sum: { dpValue: 'desc' } },
+                take: 10
+            }),
+            (prisma.sales as any).groupBy({
+                by: ['dbName'],
+                where: salesWhere,
+                _sum: { dpValue: true },
+                orderBy: { _sum: { dpValue: 'desc' } },
+                take: 10
+            }),
+            (prisma.sales as any).groupBy({
+                by: ['brand'],
+                where: salesWhere,
+                _sum: { dpValue: true },
+                orderBy: { _sum: { dpValue: 'desc' } },
+                take: 10
             })
         ]);
 
-        // Calculate totals from breakdowns
         const totalSalesAmount = salesBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.dpValue || 0), 0);
         const totalSalesVolume = salesBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.qtyLtrKg || 0), 0);
-
         const totalStockValue = stockBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.dealerAmount || 0), 0);
         const totalStockVolume = stockBreakdown.reduce((sum: number, item: any) => sum + Number(item._sum?.ltrKg || 0), 0);
+
+        const mapTop = (arr: any) => (arr || []).map((p: any) => ({
+            name: String(p.productName || p.division || p.depot || p.dbName || p.brand || p.siteName || p.partyName || 'Unknown'),
+            value: Number(p._sum?.dpValue || 0)
+        }));
 
         res.json({
             sales: {
@@ -226,12 +261,11 @@ router.get("/dashboard-kpis", async (req: Request, res: Response): Promise<any> 
                     volume: Number(item._sum?.ltrKg || 0)
                 })).sort((a: any, b: any) => b.value - a.value)
             },
-            topProducts: (topProducts || []).map((p: any) => ({
-                ...p,
-                _sum: {
-                    dpValue: Number(p._sum?.dpValue || 0)
-                }
-            }))
+            topProducts: mapTop(topProducts),
+            topDivisions: mapTop(topDivisions),
+            topSites: mapTop(topSites),
+            topDistributors: mapTop(topDistributors),
+            topBrands: mapTop(topBrands)
         });
     } catch (error) {
         console.error(error);
@@ -267,14 +301,12 @@ router.get("/sales-trends", async (req: Request, res: Response): Promise<any> =>
             }
         });
 
-        // Pivot the data for Recharts Stacked Area
-        // We want: [{ day: '2023-10-01', 'LineA': 500, 'LineB': 1200 }, ...]
         const pivotedMap = new Map<string, any>();
 
         rawTrends.forEach((item: any) => {
             if (!item.date) return;
             const dayStr = new Date(item.date).toISOString().split('T')[0];
-            const line = item.prodLine || 'Unknown';
+            const prodLine = item.prodLine || 'Unknown';
             const val = Number(item._sum?.dpValue || 0);
 
             if (!pivotedMap.has(dayStr)) {
@@ -282,7 +314,7 @@ router.get("/sales-trends", async (req: Request, res: Response): Promise<any> =>
             }
 
             const dayObj = pivotedMap.get(dayStr);
-            dayObj[line] = (dayObj[line] || 0) + val;
+            dayObj[prodLine] = (dayObj[prodLine] || 0) + val;
             dayObj.total += val;
         });
 
@@ -325,7 +357,7 @@ router.get("/filter-options", async (req: Request, res: Response): Promise<any> 
         const stockDivisions = await prisma.stock.findMany({ select: { division: true }, distinct: ['division'] });
         const stockCategories = await prisma.stock.findMany({ select: { category: true }, distinct: ['category'] });
         const stockSiteNames = await prisma.stock.findMany({ select: { siteName: true }, distinct: ['siteName'] });
-        const stockGroups = await prisma.stock.findMany({ select: { group: true }, distinct: ['group'] });
+        const stockProdLines = await prisma.stock.findMany({ select: { prodLine: true }, distinct: ['prodLine'] });
         const stockSources = await prisma.stock.findMany({ select: { source: true }, distinct: ['source'] });
         const stockPartyNames = await prisma.stock.findMany({ select: { partyName: true }, distinct: ['partyName'] });
         const stockProductNames = await prisma.stock.findMany({ select: { productName: true }, distinct: ['productName'] });
@@ -347,7 +379,7 @@ router.get("/filter-options", async (req: Request, res: Response): Promise<any> 
                 divisions: stockDivisions.map((i: any) => i.division).filter(Boolean).sort(),
                 categories: stockCategories.map((i: any) => i.category).filter(Boolean).sort(),
                 siteNames: stockSiteNames.map((i: any) => i.siteName).filter(Boolean).sort(),
-                groups: stockGroups.map((i: any) => i.group).filter(Boolean).sort(),
+                prodLines: stockProdLines.map((i: any) => i.prodLine).filter(Boolean).sort(),
                 sources: stockSources.map((i: any) => i.source).filter(Boolean).sort(),
                 parties: stockPartyNames.map((i: any) => i.partyName).filter(Boolean).sort(),
                 products: stockProductNames.map((i: any) => i.productName).filter(Boolean).sort(),

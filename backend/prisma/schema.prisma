@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-3.0.x", "rhel-openssl-1.0.x"]
 }
 
 datasource db {
@@ -47,7 +47,7 @@ model Stock {
   distCode       String?
   source         String?
   partyName      String?
-  group          String?
+  prodLine       String?
   category       String?
   brand          String?
   productCode    String
@@ -69,7 +69,7 @@ model Stock {
   @@index([brand])
   @@index([division])
   @@index([category])
-  @@index([group])
+  @@index([prodLine])
   @@index([siteName])
   @@index([source])
   @@index([partyName])

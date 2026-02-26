@@ -28,7 +28,7 @@ export default function ImportStock() {
     const downloadTemplate = () => {
         const headers = [
             "Stock Date", "Division", "Site Name", "Dist. Code", "Source", "Party Name",
-            "Group", "Category", "Brand", "Product SKU", "Product Name",
+            "Product Line", "Category", "Brand", "Product SKU", "Product Name",
             "Batch Name", "Qty", "Retailer Price", "Dealer Price", "LTR/KG",
             "Retailer Amount", "Dealer Amount"
         ];
@@ -239,7 +239,7 @@ export default function ImportStock() {
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Required Schema</p>
                                 <p className="text-[11px] font-mono bg-slate-50 p-2 rounded text-slate-600 leading-relaxed text-xs">
-                                    Stock Date, Division, Site Name, Dist. Code, Source, Party Name, Group, Category, Brand, Product SKU, Product Name, Batch Name, Qty, Retailer Price, Dealer Price, LTR/KG, Retailer Amount, Dealer Amount
+                                    Stock Date, Division, Site Name, Dist. Code, Source, Party Name, Product Line, Category, Brand, Product SKU, Product Name, Batch Name, Qty, Retailer Price, Dealer Price, LTR/KG, Retailer Amount, Dealer Amount
                                 </p>
                             </div>
                         </div>
