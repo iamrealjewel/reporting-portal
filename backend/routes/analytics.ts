@@ -20,9 +20,12 @@ router.get("/sales-summary", async (req: Request, res: Response): Promise<any> =
     } = req.query;
 
     // Support both single/multi "dimension" (legacy) and multi "dimensions" (new)
-    const dims: string[] = dimensions
+    const rawDims: string[] = dimensions
         ? (dimensions as string).split(',')
         : dimension ? (dimension as string).split(',') : [];
+
+    // Map aliases
+    const dims = rawDims.map(d => d === 'salesDate' ? 'date' : d);
 
     const validDimensions = ["date", "division", "depot", "prodLine", "category", "brand", "seller", "employeeName", "dbName", "productName"];
 
@@ -96,9 +99,12 @@ router.get("/stock-summary", async (req: Request, res: Response): Promise<any> =
     } = req.query;
 
     // Support both single/multi "dimension" (legacy) and multi "dimensions" (new)
-    const dims: string[] = dimensions
+    const rawDims: string[] = dimensions
         ? (dimensions as string).split(',')
         : dimension ? (dimension as string).split(',') : [];
+
+    // Map aliases
+    const dims = rawDims.map(d => d === 'date' ? 'stockDate' : d);
 
     const validDimensions = ["stockDate", "division", "siteName", "prodLine", "category", "brand", "source", "partyName", "productName"];
 
